@@ -1,0 +1,30 @@
+name: Format
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  swift_format:
+    name: swift-format
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install swift-format
+        run: brew install swift-format
+      - name: Format
+        run: swift-format format --recursive --in-place Sources Tests
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Run swift-format
+          branch: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

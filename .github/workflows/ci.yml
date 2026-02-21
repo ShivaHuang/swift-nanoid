@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - '*'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        config: ['debug', 'release']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests (${{ matrix.config }})
+        run: swift test -c ${{ matrix.config }}
+      - name: Build for library evolution
+        if: matrix.config == 'debug'
+        run: swift build -c release -Xswiftc -enable-library-evolution
+
+  ubuntu:
+    strategy:
+      matrix:
+        swift:
+          - '6.2'
+    name: Ubuntu (Swift ${{ matrix.swift }})
+    runs-on: ubuntu-latest
+    container: swift:${{ matrix.swift }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test --parallel
+      - name: Run tests (release)
+        run: swift test -c release --parallel
