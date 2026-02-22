@@ -246,8 +246,8 @@ public struct NanoID: Equatable, Hashable, Sendable, RawRepresentable {
     func fillRandomBytes(_ bytes: inout [UInt8], using generator: inout T) {
       var i = 0
       while i < bytes.count {
-        var x = generator.next() // UInt64
-        for _ in 0 ..< 8 {
+        var x = generator.next()  // UInt64
+        for _ in 0..<8 {
           if i == bytes.count { return }
           bytes[i] = UInt8(truncatingIfNeeded: x)
           x >>= 8
@@ -327,8 +327,8 @@ extension NanoID: CustomStringConvertible {
   }
 }
 
-public extension NanoID {
-  struct Alphabets: RawRepresentable, ExpressibleByStringLiteral, Sendable {
+extension NanoID {
+  public struct Alphabets: RawRepresentable, ExpressibleByStringLiteral, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -339,7 +339,7 @@ public extension NanoID {
       self.rawValue = value
     }
 
-    public static func +(lhs: Self, rhs: Self) -> Self {
+    public static func + (lhs: Self, rhs: Self) -> Self {
       .init(rawValue: lhs.rawValue + rhs.rawValue)
     }
   }
@@ -366,29 +366,29 @@ public extension NanoID {
 /// let customAlphabet = .numbers + "-"
 /// let dashSeparatedID = NanoID(from: customAlphabet, size: 10)
 /// ```
-public extension NanoID.Alphabets {
+extension NanoID.Alphabets {
   /// Default URL-safe alphabet: digits, lowercase, uppercase, underscore, and hyphen.
   ///
   /// Contains 64 characters: `0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-`
-  static let `default`: Self = alphanumeric + "_-"
+  public static let `default`: Self = alphanumeric + "_-"
 
   /// Uppercase letters A-Z (26 characters).
-  static let uppercase: Self = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  public static let uppercase: Self = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
   /// Lowercase letters a-z (26 characters).
-  static let lowercase: Self = "abcdefghijklmnopqrstuvwxyz"
+  public static let lowercase: Self = "abcdefghijklmnopqrstuvwxyz"
 
   /// Decimal digits 0-9 (10 characters).
-  static let numbers: Self = "0123456789"
+  public static let numbers: Self = "0123456789"
 
   /// Alphanumeric characters: digits + lowercase + uppercase (62 characters).
-  static let alphanumeric: Self = numbers + lowercase + uppercase
+  public static let alphanumeric: Self = numbers + lowercase + uppercase
 
   /// Hexadecimal uppercase: 0-9 and A-F (16 characters).
-  static let hexadecimalUppercase: Self = numbers + "ABCDEF"
+  public static let hexadecimalUppercase: Self = numbers + "ABCDEF"
 
   /// Hexadecimal lowercase: 0-9 and a-f (16 characters).
-  static let hexadecimalLowercase: Self = numbers + "abcdef"
+  public static let hexadecimalLowercase: Self = numbers + "abcdef"
 
   /// Human-friendly alphabet excluding lookalike characters (49 characters).
   ///
@@ -396,13 +396,13 @@ public extension NanoID.Alphabets {
   /// `S`, `Z`, `l` (lowercase L), `o` (lowercase o), `s` (lowercase s), `u`, `v`
   ///
   /// Useful for IDs that will be manually typed or communicated verbally.
-  static let nolookalikes: Self = "346789ABCDEFGHJKLMNPQRTUVWXYabcdefghijkmnpqrtwxyz"
+  public static let nolookalikes: Self = "346789ABCDEFGHJKLMNPQRTUVWXYabcdefghijkmnpqrtwxyz"
 
   /// Extra-safe human-friendly alphabet with aggressive lookalike exclusion (34 characters).
   ///
   /// More restrictive than ``nolookalikes``, removing additional ambiguous characters.
   /// Best for high-security contexts like temporary passwords or support tickets.
-  static let nolookalikesSafe: Self = "6789BCDFGHJKLMNPQRTWbcdfghjkmnpqrtwz"
+  public static let nolookalikesSafe: Self = "6789BCDFGHJKLMNPQRTWbcdfghjkmnpqrtwz"
 
   /// Cookie-safe characters per RFC 6265 (78 characters).
   ///
@@ -411,7 +411,7 @@ public extension NanoID.Alphabets {
   /// generating IDs that will be stored in cookies.
   ///
   /// Reference: [RFC 6265 - HTTP State Management Mechanism](https://tools.ietf.org/html/rfc6265)
-  static let cookieSafe: Self = alphanumeric + "!#$%&'*+-.^_`|~"
+  public static let cookieSafe: Self = alphanumeric + "!#$%&'*+-.^_`|~"
 
   /// Extended cookie-compatible characters including more punctuation (90 characters).
   ///
@@ -419,5 +419,5 @@ public extension NanoID.Alphabets {
   /// though some may require URL encoding in certain contexts. Includes: `!#$%&'()*+-./:<=>?@[]^_`{|}~`
   ///
   /// Use ``cookieSafe`` instead if you want to avoid potential encoding issues.
-  static let cookieUnsafe: Self = alphanumeric + "!#$%&'()*+-./:<=>?@[]^_`{|}~"
+  public static let cookieUnsafe: Self = alphanumeric + "!#$%&'()*+-./:<=>?@[]^_`{|}~"
 }

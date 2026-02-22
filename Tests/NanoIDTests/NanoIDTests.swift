@@ -6,8 +6,9 @@
 //
 
 import Foundation
-@testable import NanoID
 import Testing
+
+@testable import NanoID
 
 @Suite("NanoID Tests")
 struct NanoIDTests {
@@ -156,14 +157,14 @@ struct NanoIDTests {
   func hashable() {
     let id1 = NanoID(rawValue: "test1")!
     let id2 = NanoID(rawValue: "test2")!
-    let id3 = NanoID(rawValue: "test1")! // duplicate
+    let id3 = NanoID(rawValue: "test1")!  // duplicate
 
     let set = Set([id1, id2, id3])
-    #expect(set.count == 2) // id1 and id3 are duplicates
+    #expect(set.count == 2)  // id1 and id3 are duplicates
 
     let dict = [id1: "value1", id2: "value2"]
     #expect(dict[id1] == "value1")
-    #expect(dict[id3] == "value1") // Same key as id1
+    #expect(dict[id3] == "value1")  // Same key as id1
   }
 
   // MARK: - Deterministic Generation Tests
@@ -240,9 +241,10 @@ struct NanoIDTests {
     let custom = NanoID.Alphabets.lowercase + NanoID.Alphabets.numbers + "_"
     let id = NanoID(from: custom, size: 20)
     #expect(id.rawValue.count == 20)
-    #expect(id.rawValue.allSatisfy {
-      $0.isLowercase || $0.isNumber || $0 == "_"
-    })
+    #expect(
+      id.rawValue.allSatisfy {
+        $0.isLowercase || $0.isNumber || $0 == "_"
+      })
   }
 
   @Test("Alphabets RawRepresentable")
@@ -308,7 +310,8 @@ struct NanoIDTests {
       ids.insert(id)
     }
 
-    #expect(ids.count == batchSize, "Expected all \(batchSize) IDs to be unique, but got \(ids.count)")
+    #expect(
+      ids.count == batchSize, "Expected all \(batchSize) IDs to be unique, but got \(ids.count)")
   }
 
   @Test("Short IDs with large alphabet maintain uniqueness")
@@ -431,7 +434,7 @@ struct SeededRandomNumberGenerator: RandomNumberGenerator {
 
   mutating func next() -> UInt64 {
     // Simple LCG (Linear Congruential Generator)
-    state = state &* 6364136223846793005 &+ 1442695040888963407
+    state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
     return state
   }
 }

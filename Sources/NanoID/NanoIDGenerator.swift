@@ -125,11 +125,14 @@ public struct NanoIDGenerator: Sendable {
 private struct IncrementingNanoIDGenerator: Sendable {
   let size: Int
   private let sequence = LockIsolated(0)
-    
+
   func callAsFunction() -> NanoID {
     sequence.withValue { sequence in
       defer { sequence += 1 }
-      return NanoID(rawValue: String(String(format: "%0\(size)d", locale: Locale(identifier: "en_US_POSIX"), sequence).suffix(size)))!
+      return NanoID(
+        rawValue: String(
+          String(format: "%0\(size)d", locale: Locale(identifier: "en_US_POSIX"), sequence).suffix(
+            size)))!
     }
   }
 }
