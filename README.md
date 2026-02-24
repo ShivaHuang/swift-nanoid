@@ -163,6 +163,12 @@ Then add the product you need to your target:
 ),
 ```
 
+## Alternatives
+
+There are other Swift implementations of NanoID in the community:
+
+* [antiflasher/NanoID](https://github.com/antiflasher/NanoID)
+
 ## Credits
 
 The `NanoIDDependency` module is designed to work with
