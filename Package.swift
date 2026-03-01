@@ -19,7 +19,6 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-concurrency-extras", from: "1.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
-        .package(url: "https://github.com/ordo-one/package-benchmark", from: "1.4.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -42,17 +41,6 @@ let package = Package(
             dependencies: [
                 "NanoID",
                 "NanoIDDependency",
-            ]
-        ),
-        .executableTarget(
-            name: "NanoIDBenchmarks",
-            dependencies: [
-                "NanoID",
-                .product(name: "Benchmark", package: "package-benchmark"),
-            ],
-            path: "Benchmarks/NanoIDBenchmarks",
-            plugins: [
-                .plugin(name: "BenchmarkPlugin", package: "package-benchmark"),
             ]
         ),
     ]
