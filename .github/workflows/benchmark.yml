@@ -127,7 +127,7 @@ jobs:
   # Runs after merge to master — updates README.md Benchmarks section and commits
   update-readme:
     name: Update README benchmarks
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     container: swift:6.2
     permissions:
