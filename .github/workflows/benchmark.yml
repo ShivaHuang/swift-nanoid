@@ -138,8 +138,8 @@ jobs:
       - name: Mark repo safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install jemalloc
-        run: apt-get update -q && apt-get install -y -q libjemalloc-dev
+      - name: Install dependencies
+        run: apt-get update -q && apt-get install -y -q libjemalloc-dev python3
 
       - name: Run benchmarks
         shell: bash
