@@ -50,9 +50,7 @@ jobs:
           swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress
 
       - name: Switch to master
-        run: |
-          git stash
-          git checkout master
+        run: git checkout master -- Sources/ Package.swift
 
       - name: Run benchmarks for master
         run: swift package --package-path Benchmarks --disable-sandbox benchmark baseline update master --no-progress
