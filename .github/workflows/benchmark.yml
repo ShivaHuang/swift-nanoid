@@ -1,0 +1,107 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'Sources/NanoID/**'
+      - 'Benchmarks/**'
+      - 'Package.swift'
+  push:
+    branches:
+      - master
+    paths:
+      - 'Sources/NanoID/**'
+      - 'Benchmarks/**'
+      - 'Package.swift'
+
+jobs:
+  # Runs on every PR — posts/updates a single comment with results
+  pr-comment:
+    name: Post benchmark results
+    if: github.event_name == 'pull_request'
+    runs-on: macos-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run benchmarks
+        run: swift package benchmark 2>&1 | tee benchmark-results.txt
+
+      - name: Create or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('benchmark-results.txt', 'utf8');
+            const marker = '<!-- benchmark-results -->';
+            const commentBody = `${marker}\n## Benchmark Results\n\n\`\`\`\n${body}\n\`\`\``;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.login === 'github-actions[bot]' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }
+
+  # Runs after merge to master — updates README.md Benchmarks section and commits
+  update-readme:
+    name: Update README benchmarks
+    if: github.event_name == 'push'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run benchmarks
+        run: swift package benchmark 2>&1 | tee benchmark-results.txt
+
+      - name: Update README
+        run: |
+          python3 - <<'EOF'
+          import re
+          results = open('benchmark-results.txt').read()
+          readme = open('README.md').read()
+          block = (
+              '<!-- BENCHMARK_RESULTS_START -->\n'
+              f'```\n{results}\n```\n'
+              '<!-- BENCHMARK_RESULTS_END -->'
+          )
+          readme = re.sub(
+              r'<!-- BENCHMARK_RESULTS_START -->.*?<!-- BENCHMARK_RESULTS_END -->',
+              block,
+              readme,
+              flags=re.DOTALL,
+          )
+          open('README.md', 'w').write(readme)
+          EOF
+
+      - name: Commit updated README
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          git diff --staged --quiet || git commit -m "chore: update benchmark results [skip ci]"
+          git push
