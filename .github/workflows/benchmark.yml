@@ -9,13 +9,6 @@ on:
       - 'Sources/NanoID/**'
       - 'Benchmarks/**'
       - 'Package.swift'
-  push:
-    branches:
-      - master
-    paths:
-      - 'Sources/NanoID/**'
-      - 'Benchmarks/**'
-      - 'Package.swift'
 
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -23,33 +16,36 @@ concurrency:
 
 jobs:
   # Runs on PRs and manual dispatch — compares branch vs master using baselines,
-  # writes full diff to GitHub Step Summary, posts brief status to PR comment
+  # writes full diff to GitHub Step Summary, posts brief status to PR comment,
+  # and commits updated README to the PR branch on success
   benchmark-delta:
     name: Benchmark PR vs master
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     container: swift:6.2
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
 
       - name: Mark repo safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install jemalloc
-        run: apt-get update -q && apt-get install -y -q libjemalloc-dev
+      - name: Install dependencies
+        run: apt-get update -q && apt-get install -y -q libjemalloc-dev python3
 
       - name: Run benchmarks for PR branch
+        shell: bash
         run: |
           echo "exitStatus=1" >> $GITHUB_ENV
-          swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress
+          set -o pipefail
+          NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress 2>&1 | tee benchmark-results.txt
 
-      - name: Switch to master
+      - name: Switch to master sources
         run: git checkout origin/master -- Sources/ Package.swift
 
       - name: Run benchmarks for master
@@ -72,6 +68,32 @@ jobs:
           else
             echo "exitStatus=0" >> $GITHUB_ENV
           fi
+
+      - name: Update README on PR branch
+        if: github.event_name == 'pull_request' && (env.exitStatus == '0' || env.exitStatus == '4')
+        run: |
+          python3 - <<'EOF'
+          import re
+          results = open('benchmark-results.txt').read()
+          readme = open('README.md').read()
+          block = (
+              '<!-- BENCHMARK_RESULTS_START -->\n'
+              f'```\n{results}\n```\n'
+              '<!-- BENCHMARK_RESULTS_END -->'
+          )
+          readme = re.sub(
+              r'<!-- BENCHMARK_RESULTS_START -->.*?<!-- BENCHMARK_RESULTS_END -->',
+              lambda _: block,
+              readme,
+              flags=re.DOTALL,
+          )
+          open('README.md', 'w').write(readme)
+          EOF
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          git diff --staged --quiet || git commit -m "chore: update benchmark results [skip ci]"
+          git push origin HEAD:${{ github.head_ref }}
 
       - name: Post PR comment
         if: github.event_name == 'pull_request'
@@ -123,52 +145,3 @@ jobs:
           else
             exit ${{ env.exitStatus }}
           fi
-
-  # Runs after merge to master — updates README.md Benchmarks section and commits
-  update-readme:
-    name: Update README benchmarks
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    container: swift:6.2
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Mark repo safe for git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Install dependencies
-        run: apt-get update -q && apt-get install -y -q libjemalloc-dev python3
-
-      - name: Run benchmarks
-        shell: bash
-        run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark --no-progress 2>&1 | tee benchmark-results.txt
-
-      - name: Update README
-        run: |
-          python3 - <<'EOF'
-          import re
-          results = open('benchmark-results.txt').read()
-          readme = open('README.md').read()
-          block = (
-              '<!-- BENCHMARK_RESULTS_START -->\n'
-              f'```\n{results}\n```\n'
-              '<!-- BENCHMARK_RESULTS_END -->'
-          )
-          readme = re.sub(
-              r'<!-- BENCHMARK_RESULTS_START -->.*?<!-- BENCHMARK_RESULTS_END -->',
-              lambda _: block,
-              readme,
-              flags=re.DOTALL,
-          )
-          open('README.md', 'w').write(readme)
-          EOF
-
-      - name: Commit updated README
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add README.md
-          git diff --staged --quiet || git commit -m "chore: update benchmark results [skip ci]"
-          git push origin HEAD:master
