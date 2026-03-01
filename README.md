@@ -163,6 +163,13 @@ Then add the product you need to your target:
 ),
 ```
 
+## Benchmarks
+
+Run locally with `swift package benchmark`. Results shown below are from the latest commit on `master`.
+
+<!-- BENCHMARK_RESULTS_START -->
+<!-- BENCHMARK_RESULTS_END -->
+
 ## Alternatives
 
 There are other Swift implementations of NanoID in the community:
