@@ -52,6 +52,9 @@ jobs:
       - name: Run benchmarks for master
         run: swift package --package-path master-src/Benchmarks --disable-sandbox benchmark baseline update master --no-progress
 
+      - name: Collect master baseline
+        run: cp -r master-src/Benchmarks/.benchmarkBaselines/. Benchmarks/.benchmarkBaselines/
+
       - name: Remove master worktree
         if: always()
         run: git worktree remove master-src --force
