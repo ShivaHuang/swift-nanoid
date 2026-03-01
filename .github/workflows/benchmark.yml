@@ -20,6 +20,7 @@ jobs:
   # and commits updated README to the PR branch on success
   benchmark-delta:
     name: Benchmark PR vs master
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     container: swift:6.2
     timeout-minutes: 30
@@ -39,17 +40,21 @@ jobs:
         run: apt-get update -q && apt-get install -y -q libjemalloc-dev python3
 
       - name: Run benchmarks for PR branch
-        shell: bash
         run: |
           echo "exitStatus=1" >> $GITHUB_ENV
-          set -o pipefail
-          NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress 2>&1 | tee benchmark-results.txt
+          NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress > benchmark-results.txt
 
-      - name: Switch to master sources
-        run: git checkout origin/master -- Sources/ Package.swift
+      - name: Add master worktree
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/master-src"
+          git worktree add master-src origin/master
 
       - name: Run benchmarks for master
-        run: swift package --package-path Benchmarks --disable-sandbox benchmark baseline update master --no-progress
+        run: swift package --package-path master-src/Benchmarks --disable-sandbox benchmark baseline update master --no-progress
+
+      - name: Remove master worktree
+        if: always()
+        run: git worktree remove master-src --force
 
       - name: Compare PR vs master
         continue-on-error: true
