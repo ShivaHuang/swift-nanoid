@@ -1,6 +1,7 @@
 name: Benchmarks
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - master
@@ -21,73 +22,123 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Runs on every PR — posts/updates a single comment with results
-  pr-comment:
-    name: Post benchmark results
-    if: github.event_name == 'pull_request'
-    runs-on: macos-latest
+  # Runs on PRs and manual dispatch — compares branch vs master using baselines,
+  # writes full diff to GitHub Step Summary, posts brief status to PR comment
+  benchmark-delta:
+    name: Benchmark PR vs master
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install jemalloc
-        run: brew install jemalloc
+        run: apt-get update -q && apt-get install -y -q libjemalloc-dev
 
-      - name: Run benchmarks
-        run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks benchmark 2>&1 | tee benchmark-results.txt
+      - name: Run benchmarks for PR branch
+        run: |
+          echo "exitStatus=1" >> $GITHUB_ENV
+          swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress
 
-      - name: Create or update PR comment
+      - name: Switch to master
+        run: |
+          git stash
+          git checkout master
+
+      - name: Run benchmarks for master
+        run: swift package --package-path Benchmarks --disable-sandbox benchmark baseline update master --no-progress
+
+      - name: Compare PR vs master
+        continue-on-error: true
+        run: |
+          date >> $GITHUB_STEP_SUMMARY
+          swift package --package-path Benchmarks benchmark baseline check master pull_request --format markdown >> $GITHUB_STEP_SUMMARY 2>benchmark_stderr
+          cat benchmark_stderr >&2
+          if grep -q "benchmarkThresholdImprovement" benchmark_stderr; then
+            echo "exitStatus=4" >> $GITHUB_ENV
+          elif grep -q "benchmarkThresholdRegression" benchmark_stderr; then
+            echo "exitStatus=2" >> $GITHUB_ENV
+          elif grep -q "benchmarkCrashed" benchmark_stderr; then
+            echo "exitStatus=3" >> $GITHUB_ENV
+          elif grep -q "baselineNotFound" benchmark_stderr; then
+            echo "exitStatus=5" >> $GITHUB_ENV
+          else
+            echo "exitStatus=0" >> $GITHUB_ENV
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const body = fs.readFileSync('benchmark-results.txt', 'utf8');
-            const marker = '<!-- benchmark-results -->';
-            const commentBody = `${marker}\n## Benchmark Results\n\n\`\`\`\n${body}\n\`\`\``;
+            const exitStatus = process.env.exitStatus;
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const statusMap = {
+              '0': '✅ No performance change detected.',
+              '2': '❌ Performance regression detected.',
+              '4': '🚀 Performance improvement detected.',
+              '3': '💥 Benchmark crashed.',
+              '5': '⚠️ Baseline not found.',
+            };
+            const status = statusMap[exitStatus] ?? `⚠️ Unknown result (exit ${exitStatus}).`;
+            const marker = '<!-- benchmark-delta -->';
+            const body = `${marker}\n### Benchmark Comparison\n${status}\n[View full comparison →](${runUrl})`;
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-
             const existing = comments.find(c =>
               c.user.login === 'github-actions[bot]' && c.body?.includes(marker)
             );
-
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: existing.id,
-                body: commentBody,
+                body,
               });
             } else {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: commentBody,
+                body,
               });
             }
+
+      - name: Exit with correct status
+        if: success() || failure()
+        run: |
+          if [ "${{ env.exitStatus }}" = "0" ] || [ "${{ env.exitStatus }}" = "4" ]; then
+            exit 0
+          else
+            exit ${{ env.exitStatus }}
+          fi
 
   # Runs after merge to master — updates README.md Benchmarks section and commits
   update-readme:
     name: Update README benchmarks
     if: github.event_name == 'push'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    container: swift:6.2
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Install jemalloc
-        run: brew install jemalloc
+        run: apt-get update -q && apt-get install -y -q libjemalloc-dev
 
       - name: Run benchmarks
-        run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks benchmark 2>&1 | tee benchmark-results.txt
+        run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark --no-progress 2>&1 | tee benchmark-results.txt
 
       - name: Update README
         run: |
