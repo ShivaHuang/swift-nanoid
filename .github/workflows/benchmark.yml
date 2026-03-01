@@ -142,6 +142,7 @@ jobs:
         run: apt-get update -q && apt-get install -y -q libjemalloc-dev
 
       - name: Run benchmarks
+        shell: bash
         run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark --no-progress 2>&1 | tee benchmark-results.txt
 
       - name: Update README
