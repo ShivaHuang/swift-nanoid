@@ -62,6 +62,7 @@ jobs:
       - name: Compare PR vs master
         continue-on-error: true
         run: |
+          set +e
           date >> $GITHUB_STEP_SUMMARY
           swift package --package-path Benchmarks benchmark baseline check master pull_request --format markdown >> $GITHUB_STEP_SUMMARY 2>benchmark_stderr
           cat benchmark_stderr >&2
