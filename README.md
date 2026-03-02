@@ -165,9 +165,15 @@ Then add the product you need to your target:
 
 ## Benchmarks
 
-Run locally with `swift package benchmark`. Results shown below are from the latest commit on `master`.
+Run locally with `swift package --package-path Benchmarks benchmark`. Results shown below are from the latest commit on `master`.
 
 <!-- BENCHMARK_RESULTS_START -->
+> Results from an Apple M2 Pro Mac mini (10-core ARM64, 32 GB).
+
+| Benchmark | Median (p50) | Throughput |
+|-----------|-------------|------------|
+| `nanoid` | 3,793 ns | ~264K IDs/s |
+| `customAlphabet` | 3,625 ns | ~276K IDs/s |
 <!-- BENCHMARK_RESULTS_END -->
 
 ## Alternatives
