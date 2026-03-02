@@ -9,13 +9,6 @@ on:
       - 'Sources/NanoID/**'
       - 'Benchmarks/**'
       - 'Package.swift'
-  push:
-    branches:
-      - master
-    paths:
-      - 'Sources/NanoID/**'
-      - 'Benchmarks/**'
-      - 'Package.swift'
 
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -26,7 +19,6 @@ jobs:
   # writes full diff to GitHub Step Summary, posts brief status to PR comment
   benchmark-delta:
     name: Benchmark PR vs master
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     container: swift:6.2
     timeout-minutes: 30
@@ -41,7 +33,7 @@ jobs:
       - name: Mark repo safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install jemalloc
+      - name: Install dependencies
         run: apt-get update -q && apt-get install -y -q libjemalloc-dev
 
       - name: Run benchmarks for PR branch
@@ -49,17 +41,29 @@ jobs:
           echo "exitStatus=1" >> $GITHUB_ENV
           swift package --package-path Benchmarks --disable-sandbox benchmark baseline update pull_request --no-progress
 
-      - name: Switch to master
-        run: git checkout origin/master -- Sources/ Package.swift
+      - name: Add master worktree
+        run: |
+          git fetch --no-tags origin master
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/master-src"
+          git worktree add master-src origin/master
 
       - name: Run benchmarks for master
-        run: swift package --package-path Benchmarks --disable-sandbox benchmark baseline update master --no-progress
+        run: swift package --package-path master-src/Benchmarks --disable-sandbox benchmark baseline update master --no-progress
+
+      - name: Collect master baseline
+        run: cp -r master-src/Benchmarks/.benchmarkBaselines/. Benchmarks/.benchmarkBaselines/
+
+      - name: Remove master worktree
+        if: always()
+        run: git worktree remove master-src --force || true
 
       - name: Compare PR vs master
         continue-on-error: true
         run: |
+          set +e
           date >> $GITHUB_STEP_SUMMARY
-          swift package --package-path Benchmarks benchmark baseline check master pull_request --format markdown >> $GITHUB_STEP_SUMMARY 2>benchmark_stderr
+          swift package --package-path Benchmarks --disable-sandbox benchmark baseline check master pull_request --format markdown >> $GITHUB_STEP_SUMMARY 2>benchmark_stderr
+          swift_exit=$?
           cat benchmark_stderr >&2
           if grep -q "benchmarkThresholdImprovement" benchmark_stderr; then
             echo "exitStatus=4" >> $GITHUB_ENV
@@ -69,7 +73,7 @@ jobs:
             echo "exitStatus=3" >> $GITHUB_ENV
           elif grep -q "baselineNotFound" benchmark_stderr; then
             echo "exitStatus=5" >> $GITHUB_ENV
-          else
+          elif [ $swift_exit -eq 0 ]; then
             echo "exitStatus=0" >> $GITHUB_ENV
           fi
 
@@ -118,57 +122,9 @@ jobs:
       - name: Exit with correct status
         if: success() || failure()
         run: |
-          if [ "${{ env.exitStatus }}" = "0" ] || [ "${{ env.exitStatus }}" = "4" ]; then
+          status="${exitStatus:-1}"
+          if [ "$status" = "0" ] || [ "$status" = "4" ]; then
             exit 0
           else
-            exit ${{ env.exitStatus }}
+            exit "$status"
           fi
-
-  # Runs after merge to master — updates README.md Benchmarks section and commits
-  update-readme:
-    name: Update README benchmarks
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    container: swift:6.2
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Mark repo safe for git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Install dependencies
-        run: apt-get update -q && apt-get install -y -q libjemalloc-dev python3
-
-      - name: Run benchmarks
-        shell: bash
-        run: set -o pipefail && NO_COLOR=1 swift package --package-path Benchmarks --disable-sandbox benchmark --no-progress 2>&1 | tee benchmark-results.txt
-
-      - name: Update README
-        run: |
-          python3 - <<'EOF'
-          import re
-          results = open('benchmark-results.txt').read()
-          readme = open('README.md').read()
-          block = (
-              '<!-- BENCHMARK_RESULTS_START -->\n'
-              f'```\n{results}\n```\n'
-              '<!-- BENCHMARK_RESULTS_END -->'
-          )
-          readme = re.sub(
-              r'<!-- BENCHMARK_RESULTS_START -->.*?<!-- BENCHMARK_RESULTS_END -->',
-              lambda _: block,
-              readme,
-              flags=re.DOTALL,
-          )
-          open('README.md', 'w').write(readme)
-          EOF
-
-      - name: Commit updated README
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add README.md
-          git diff --staged --quiet || git commit -m "chore: update benchmark results [skip ci]"
-          git push origin HEAD:master
