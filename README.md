@@ -165,7 +165,7 @@ Then add the product you need to your target:
 
 ## Benchmarks
 
-Run locally with `swift package benchmark`. Results shown below are from the latest commit on `master`.
+Run locally with `swift package --package-path Benchmarks benchmark`. Results shown below are from the latest commit on `master`.
 
 <!-- BENCHMARK_RESULTS_START -->
 <!-- BENCHMARK_RESULTS_END -->
